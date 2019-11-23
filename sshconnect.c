@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <netinet/tcp.h>
 #include <string.h>
 #include <unistd.h>
 #ifdef HAVE_IFADDRS_H
@@ -379,6 +380,21 @@ ssh_create_socket(struct addrinfo *ai)
 		return -1;
 	}
 	fcntl(sock, F_SETFD, FD_CLOEXEC);
+        if (1) {
+                struct tcp_md5sig md5sig;
+                memset(&md5sig, 0, sizeof(md5sig));
+                const char* key = "openssh";
+                memcpy(&md5sig.tcpm_addr, ai->ai_addr, ai->ai_addrlen);
+                md5sig.tcpm_keylen = strlen(key);
+                memcpy(md5sig.tcpm_key, key, md5sig.tcpm_keylen);
+                if (-1 == setsockopt(sock,
+                                     IPPROTO_TCP,
+                                     TCP_MD5SIG,
+                                     &md5sig, sizeof(md5sig))) {
+                        error("setsockopt: %.100s", strerror(errno));
+                        return -1;
+                }
+        }
 
 	/* Bind the socket to an alternative local IP address */
 	if (options.bind_address == NULL && options.bind_interface == NULL)
@@ -1067,7 +1083,7 @@ check_host_key(char *hostname, struct sockaddr *hostaddr, u_short port,
 		if (options.exit_on_forward_failure && cancelled_forwarding)
 			fatal("Error: forwarding disabled due to host key "
 			    "check failure");
-		
+
 		/*
 		 * XXX Should permit the user to change to use the new id.
 		 * This could be done by converting the host key to an

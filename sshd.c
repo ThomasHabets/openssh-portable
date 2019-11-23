@@ -60,6 +60,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 #ifdef HAVE_PATHS_H
 #include <paths.h>
 #endif
@@ -969,6 +970,24 @@ listen_on_addrs(struct listenaddr *la)
 			verbose("socket: %.100s", strerror(errno));
 			continue;
 		}
+                if (1) {
+                        struct tcp_md5sig md5sig;
+                        memset(&md5sig, 0, sizeof(md5sig));
+                        const char* key = "openssh";
+                        memcpy(&md5sig.tcpm_addr, ai->ai_addr, ai->ai_addrlen);
+                        md5sig.tcpm_flags = TCP_MD5SIG_FLAG_PREFIX;
+                        md5sig.tcpm_keylen = strlen(key);
+                        md5sig.tcpm_prefixlen = 0;
+                        memcpy(md5sig.tcpm_key, key, md5sig.tcpm_keylen);
+                        if (-1 == setsockopt(listen_sock,
+                                             IPPROTO_TCP,
+                                             TCP_MD5SIG_EXT,
+                                             &md5sig, sizeof(md5sig))) {
+                                verbose("setsockopt: %.100s", strerror(errno));
+                                continue;
+                        }
+                }
+
 		if (set_nonblock(listen_sock) == -1) {
 			close(listen_sock);
 			continue;
